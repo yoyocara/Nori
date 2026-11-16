@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🌈 Nori 的早晨彩虹大冒險</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Tone.js 產生可愛音效 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- 引入 Canvas Confetti 慶祝彩帶效果 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- 引入 Google Fonts 圓體字型，適合幼兒閱讀 -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background: linear-gradient(180deg, #E0F2FE 0%, #FEF9C3 100%);
+            min-height: 100vh;
+            user-select: none; /* 防止小朋友長按選取文字 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 雲朵漂浮動畫 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* 彩虹出現動畫 */
+        @keyframes popIn {
+            0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+            70% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .animate-pop {
+            animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* 按鈕點擊回饋 */
+        .quest-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .quest-card:active {
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+<body class="pb-10">
+
+    <!-- 頂部標題與彩虹收集櫃 -->
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 shadow-sm border-b-4 border-sky-200 px-4 py-3">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-black text-sky-600 tracking-wide flex items-center gap-1">
+                    <span>🌈</span> Nori 早晨大冒險
+                </h1>
+                <p id="today-date" class="text-xs font-bold text-slate-500 mt-0.5"></p>
+            </div>
+            
+            <!-- 彩虹收集徽章 -->
+            <button onclick="openCollectionModal()" class="bg-gradient-to-r from-amber-400 to-orange-400 text-white px-3.5 py-2 rounded-2xl shadow-md active:scale-95 transition flex items-center gap-1.5 border-2 border-white">
+                <span class="text-xl">🌈</span>
+                <div class="text-left leading-tight">
+                    <div class="text-[10px] font-bold opacity-90">已收集</div>
+                    <div class="text-sm font-black"><span id="rainbow-count">0</span> 道彩虹</div>
+                </div>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 pt-5">
+        
+        <!-- 能量進度條區塊 -->
+        <section class="bg-white rounded-3xl p-4 shadow-md border-2 border-sky-100 mb-5">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-black text-slate-700">⚡ 今日彩虹能量</span>
+                <span id="progress-text" class="text-sm font-black text-sky-600">0 / 5 關</span>
+            </div>
+            <!-- 進度條背景 -->
+            <div class="w-full h-5 bg-slate-100 rounded-full overflow-hidden p-1 border border-slate-200">
+                <!-- 彩虹漸層進度條 -->
+                <div id="progress-bar" class="h-full rounded-full transition-all duration-500 ease-out" 
+                     style="width: 0%; background: linear-gradient(90deg, #FF595E, #FFCA3A, #8AC926, #1982C4, #6A4C93);">
+                </div>
+            </div>
+            <p id="encouragement-msg" class="text-center text-xs font-bold text-amber-600 mt-2.5">
+                準備好了嗎？點點看下面的關卡吧！👇
+            </p>
+        </section>
+
+        <!-- 5大闖關任務列表 -->
+        <section id="quest-list" class="space-y-3.5">
+            <!-- 任務卡片將由 JavaScript 動態生成 -->
+        </section>
+
+        <!-- 底部重新開始按鈕 (方便隔天或測試使用) -->
+        <div class="mt-8 text-center">
+            <button onclick="confirmReset()" class="text-xs font-bold text-slate-400 hover:text-slate-600 bg-white/60 px-4 py-2 rounded-full border border-slate-200 transition">
+                🔄 明天再玩一次（重置今日關卡）
+            </button>
+        </div>
+    </main>
+
+    <!-- 🎉 過關大成功：獲得彩虹彈跳視窗 -->
+    <div id="celebration-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border-4 border-amber-300 relative overflow-hidden animate-pop">
+            <!-- 裝飾光芒背景 -->
+            <div class="absolute -top-10 -left-10 w-32 h-32 bg-yellow-200 rounded-full opacity-40 blur-xl"></div>
+            <div class="absolute -bottom-10 -right-10 w-32 h-32 bg-sky-200 rounded-full opacity-40 blur-xl"></div>
+
+            <div class="text-7xl mb-3 animate-float">🌈</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-1">太棒了，Nori！</h2>
+            <p class="text-base font-bold text-amber-600 mb-4">你成功召喚出今天的超級彩虹！</p>
+            
+            <div class="bg-amber-50 rounded-2xl p-3 mb-5 border border-amber-200">
+                <p class="text-sm font-bold text-slate-700">目前總共收集了</p>
+                <p class="text-3xl font-black text-orange-500 mt-1"><span id="modal-rainbow-total">1</span> 道彩虹</p>
+            </div>
+
+            <button onclick="closeCelebrationModal()" class="w-full py-3.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-lg rounded-2xl shadow-lg active:scale-95 transition">
+                耶！收下彩虹去上學 🎒
+            </button>
+        </div>
+    </div>
+
+    <!-- 🏆 彩虹收集冊視窗 -->
+    <div id="collection-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border-4 border-sky-200 animate-pop">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <span>🏆</span> Nori 的彩虹寶庫
+                </h3>
+                <button onclick="closeCollectionModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-black flex items-center justify-center">✕</button>
+            </div>
+            
+            <p class="text-xs font-bold text-slate-500 mb-3">每完成一天的早晨任務，就會多一道彩虹喔！集滿 5 道可以跟爸爸媽媽換小願望！</p>
+
+            <!-- 彩虹展示格 -->
+            <div id="rainbow-grid" class="grid grid-cols-5 gap-2 bg-sky-50 p-3 rounded-2xl border border-sky-100 mb-5 min-h-[80px] items-center justify-items-center">
+                <!-- 由 JS 填入彩虹 -->
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="resetTotalRainbows()" class="flex-1 py-2.5 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl active:scale-95 transition">
+                    兌換願望 (歸零)
+                </button>
+                <button onclick="closeCollectionModal()" class="flex-1 py-2.5 bg-sky-500 text-white font-black text-sm rounded-xl shadow active:scale-95 transition">
+                    繼續加油！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自訂提示/確認框 (取代 alert/confirm) -->
+    <div id="custom-dialog" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-xs w-full p-5 text-center shadow-xl border-2 border-slate-200">
+            <p id="dialog-message" class="text-base font-bold text-slate-800 mb-5"></p>
+            <div class="flex gap-3">
+                <button id="dialog-cancel" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl">取消</button>
+                <button id="dialog-confirm" class="flex-1 py-2.5 bg-amber-500 text-white font-black rounded-xl shadow">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 定義五個早晨闖關任務資料
+        const QUESTS = [
+            {
+                id: 1,
+                icon: '☀️',
+                title: '閃電起床小超人',
+                desc: '快速起床，不賴床！',
+                tip: '像火箭一樣「咻——」坐起來！',
+                color: 'from-amber-400 to-orange-400',
+                bgLight: 'bg-amber-50',
+                borderLight: 'border-amber-200',
+                reward: '陽光能量'
+            },
+            {
+                id: 2,
+                icon: '👕',
+                title: '魔法變裝大師',
+                desc: '自己換好衣服',
+                tip: '睡衣放好，穿上帥氣戰袍！',
+                color: 'from-sky-400 to-blue-500',
+                bgLight: 'bg-sky-50',
+                borderLight: 'border-sky-200',
+                reward: '勇氣披風'
+            },
+            {
+                id: 3,
+                icon: '🫧',
+                title: '亮晶晶泡泡戰士',
+                desc: '認真刷牙洗臉',
+                tip: '把蛀牙蟲通通刷乾淨！',
+                color: 'from-teal-400 to-emerald-500',
+                bgLight: 'bg-teal-50',
+                borderLight: 'border-teal-200',
+                reward: '閃亮護盾'
+            },
+            {
+                id: 4,
+                icon: '👟',
+                title: '神速探險家裝備',
+                desc: '選襪子、穿鞋子',
+                tip: '檢查左右腳，穿得整整齊齊！',
+                color: 'from-purple-400 to-indigo-500',
+                bgLight: 'bg-purple-50',
+                borderLight: 'border-purple-200',
+                reward: '風火輪加速'
+            },
+            {
+                id: 5,
+                icon: '🛗',
+                title: '出發！電梯啟動員',
+                desc: '按下樓的電梯',
+                tip: '帥氣按下「向下 ▼」按鈕！',
+                color: 'from-rose-400 to-pink-500',
+                bgLight: 'bg-rose-50',
+                borderLight: 'border-rose-200',
+                reward: '召喚大彩虹'
+            }
+        ];
+
+        // 鼓勵語句庫
+        const ENCOURAGEMENTS = [
+            "準備好了嗎？點點看下面的關卡吧！👇",
+            "太棒了！已經完成 1 關，繼續前進！🚀",
+            "Nori 好厲害！能量越來越強囉！⚡",
+            "哇！已經過了一半，加油加油！💪",
+            "只差最後一關就能召喚彩虹了！🌟",
+            "🎉 太神啦！今日所有任務全部完成！🌈"
+        ];
+
+        // 2. 狀態管理 (儲存於手機 LocalStorage，重新整理也不會不見)
+        let state = {
+            date: new Date().toDateString(),
+            completedIds: [],
+            rainbowEarnedToday: false,
+            totalRainbows: 0
+        };
+
+        // 載入儲存的進度
+        function loadState() {
+            const saved = localStorage.getItem('nori_morning_quest_v1');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                const today = new Date().toDateString();
+                // 如果是新的一天，自動重置今日關卡，但保留總彩虹數
+                if (parsed.date !== today) {
+                    state.date = today;
+                    state.completedIds = [];
+                    state.rainbowEarnedToday = false;
+                    state.totalRainbows = parsed.totalRainbows || 0;
+                    saveState();
+                } else {
+                    state = parsed;
+                }
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem('nori_morning_quest_v1', JSON.stringify(state));
+        }
+
+        // 3. 音效系統 (使用 Tone.js 合成可愛音效，無需外部音檔)
+        let synth = null;
+        function initAudio() {
+            if (!synth && window.Tone) {
+                synth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.02, decay: 0.1, sustain: 0.1, release: 0.4 }
+                }).toDestination();
+            }
+        }
+
+        // 播放單一關卡完成音效
+        function playStepSound(stepCount) {
+            try {
+                initAudio();
+                if (Tone.context.state !== 'running') Tone.start();
+                const notes = ["C5", "D5", "E5", "G5", "A5"];
+                const note = notes[(stepCount - 1) % notes.length];
+                synth.triggerAttackRelease(note, "8n");
+            } catch (e) { console.log(e); }
+        }
+
+        // 播放取消勾選音效
+        function playUncheckSound() {
+            try {
+                initAudio();
+                if (Tone.context.state !== 'running') Tone.start();
+                synth.triggerAttackRelease("G4", "16n");
+            } catch (e) { console.log(e); }
+        }
+
+        // 播放全破關勝利號角音效
+        function playVictoryFanfare() {
+            try {
+                initAudio();
+                if (Tone.context.state !== 'running') Tone.start();
+                const now = Tone.now();
+                synth.triggerAttackRelease("C5", "8n", now);
+                synth.triggerAttackRelease("E5", "8n", now + 0.12);
+                synth.triggerAttackRelease("G5", "8n", now + 0.24);
+                synth.triggerAttackRelease(["C6", "E6", "G6"], "2n", now + 0.38);
+            } catch (e) { console.log(e); }
+        }
+
+        // 4. 畫面渲染邏輯
+        function renderDate() {
+            const now = new Date();
+            const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const dateStr = `${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`;
+            document.getElementById('today-date').textContent = dateStr;
+        }
+
+        function renderQuests() {
+            const container = document.getElementById('quest-list');
+            container.innerHTML = '';
+
+            QUESTS.forEach((quest, index) => {
+                const isDone = state.completedIds.includes(quest.id);
+                
+                const card = document.createElement('div');
+                card.onclick = () => toggleQuest(quest.id);
+                
+                // 依據完成狀態切換外觀
+                if (isDone) {
+                    card.className = `quest-card cursor-pointer rounded-3xl p-4 bg-white border-4 border-emerald-400 shadow-sm flex items-center justify-between relative overflow-hidden`;
+                } else {
+                    card.className = `quest-card cursor-pointer rounded-3xl p-4 bg-white border-2 ${quest.borderLight} shadow-md hover:shadow-lg flex items-center justify-between`;
+                }
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3.5">
+                        <!-- 左側大圖示 -->
+                        <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner ${isDone ? 'bg-emerald-100' : quest.bgLight}">
+                            ${quest.icon}
+                        </div>
+                        
+                        <!-- 中間文字說明 -->
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}">
+                                    第 ${index + 1} 關
+                                </span>
+                                <span class="text-xs font-bold text-slate-400">${quest.title}</span>
+                            </div>
+                            <h3 class="text-lg font-black mt-0.5 ${isDone ? 'text-emerald-700 line-through decoration-2' : 'text-slate-800'}">
+                                ${quest.desc}
+                            </h3>
+                            <p class="text-xs font-bold ${isDone ? 'text-emerald-600' : 'text-slate-500'} mt-0.5">
+                                ${isDone ? `✨ 已獲得：${quest.reward}` : `💡 ${quest.tip}`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 右側超大勾選按鈕 -->
+                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
+                        isDone 
+                        ? 'bg-emerald-500 text-white shadow-md scale-105' 
+                        : 'bg-slate-100 text-slate-300 border-2 border-dashed border-slate-300'
+                    }">
+                        ${isDone 
+                            ? '<svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>'
+                            : '<span class="text-sm font-black">完成</span>'
+                        }
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            updateProgressUI();
+        }
+
+        function updateProgressUI() {
+            const count = state.completedIds.length;
+            const total = QUESTS.length;
+            const percent = (count / total) * 100;
+
+            document.getElementById('progress-text').textContent = `${count} / ${total} 關`;
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+            document.getElementById('encouragement-msg').textContent = ENCOURAGEMENTS[count];
+            document.getElementById('rainbow-count').textContent = state.totalRainbows;
+        }
+
+        // 5. 點擊關卡互動邏輯
+        function toggleQuest(id) {
+            const index = state.completedIds.indexOf(id);
+            
+            if (index === -1) {
+                // 標記為完成
+                state.completedIds.push(id);
+                
+                // 檢查是否全部 5 關都完成了
+                if (state.completedIds.length === QUESTS.length) {
+                    if (!state.rainbowEarnedToday) {
+                        state.rainbowEarnedToday = true;
+                        state.totalRainbows += 1;
+                    }
+                    saveState();
+                    renderQuests();
+                    triggerCelebration();
+                } else {
+                    playStepSound(state.completedIds.length);
+                    saveState();
+                    renderQuests();
+                }
+            } else {
+                // 取消完成
+                state.completedIds.splice(index, 1);
+                playUncheckSound();
+                saveState();
+                renderQuests();
+            }
+        }
+
+        // 6. 慶祝與視窗控制
+        function triggerCelebration() {
+            playVictoryFanfare();
+            document.getElementById('modal-rainbow-total').textContent = state.totalRainbows;
+            document.getElementById('celebration-modal').classList.remove('hidden');
+
+            // 發射彩色紙花
+            if (window.confetti) {
+                confetti({
+                    particleCount: 90,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        function closeCelebrationModal() {
+            document.getElementById('celebration-modal').classList.add('hidden');
+        }
+
+        function openCollectionModal() {
+            const grid = document.getElementById('rainbow-grid');
+            grid.innerHTML = '';
+
+            // 至少顯示 5 個格子（或更多）
+            const displaySlots = Math.max(5, Math.ceil((state.totalRainbows + 1) / 5) * 5);
+            
+            for (let i = 0; i < displaySlots; i++) {
+                const slot = document.createElement('div');
+                if (i < state.totalRainbows) {
+                    slot.className = 'w-12 h-12 bg-white rounded-2xl shadow-sm border border-amber-200 flex items-center justify-center text-2xl animate-pop';
+                    slot.textContent = '🌈';
+                } else {
+                    slot.className = 'w-12 h-12 bg-white/50 rounded-2xl border-2 border-dashed border-sky-200 flex items-center justify-center text-xs font-bold text-sky-300';
+                    slot.textContent = i + 1;
+                }
+                grid.appendChild(slot);
+            }
+
+            document.getElementById('collection-modal').classList.remove('hidden');
+        }
+
+        function closeCollectionModal() {
+            document.getElementById('collection-modal').classList.add('hidden');
+        }
+
+        // 自訂確認對話框
+        function showCustomDialog(message, onConfirm) {
+            const dialog = document.getElementById('custom-dialog');
+            document.getElementById('dialog-message').textContent = message;
+            dialog.classList.remove('hidden');
+
+            const confirmBtn = document.getElementById('dialog-confirm');
+            const cancelBtn = document.getElementById('dialog-cancel');
+
+            // 清除舊監聽器
+            const newConfirm = confirmBtn.cloneNode(true);
+            const newCancel = cancelBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+            newConfirm.onclick = () => {
+                dialog.classList.add('hidden');
+                onConfirm();
+            };
+            newCancel.onclick = () => {
+                dialog.classList.add('hidden');
+            };
+        }
+
+        function confirmReset() {
+            showCustomDialog('要清空今天的打勾紀錄，重新挑戰一次嗎？', () => {
+                state.completedIds = [];
+                state.rainbowEarnedToday = false;
+                saveState();
+                renderQuests();
+            });
+        }
+
+        function resetTotalRainbows() {
+            showCustomDialog('確定已經跟爸爸媽媽兌換完願望，要將彩虹數量歸零嗎？', () => {
+                state.totalRainbows = 0;
+                state.rainbowEarnedToday = false;
+                saveState();
+                renderQuests();
+                openCollectionModal();
+            });
+        }
+
+        // 初始化程式
+        window.onload = function() {
+            loadState();
+            renderDate();
+            renderQuests();
+        };
+    </script>
+</body>
+</html>
